@@ -57,24 +57,17 @@ public class GadgetInspector {
             argIndex += 1;
         }
 
-        final ClassLoader classLoader;
-        if (args.length == argIndex+1 && args[argIndex].toLowerCase().endsWith(".war")) {
-            Path path = Paths.get(args[argIndex]);
-            LOGGER.info("Using WAR classpath: " + path);
-            classLoader = Util.getWarClassLoader(path);
-        } else {
-            final Path[] jarPaths = new Path[args.length - argIndex];
-            for (int i = 0; i < args.length - argIndex; i++) {
-                Path path = Paths.get(args[argIndex + i]).toAbsolutePath();
-                if (!Files.exists(path)) {
-                    throw new IllegalArgumentException("Invalid jar path: " + path);
-                }
-                jarPaths[i] = path;
+        final Path[] jarPaths = new Path[args.length - argIndex];
+        for (int i = 0; i < args.length - argIndex; i++) {
+            Path path = Paths.get(args[argIndex + i]).toAbsolutePath();
+            if (!Files.exists(path)) {
+                throw new IllegalArgumentException("Invalid jar path: " + path);
             }
-            LOGGER.info("Using classpath: " + Arrays.toString(jarPaths));
-            classLoader = Util.getJarClassLoader(jarPaths);
+            jarPaths[i] = path;
         }
-        final ClassResourceEnumerator classResourceEnumerator = new ClassResourceEnumerator(classLoader);
+        LOGGER.info("Using classpath: " + Arrays.toString(jarPaths));
+
+        final ClassResourceEnumerator classResourceEnumerator = new ClassResourceEnumerator(jarPaths, true);
 
         if (!resume) {
             // Delete all existing dat files

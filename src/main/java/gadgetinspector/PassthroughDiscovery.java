@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -463,10 +464,8 @@ public class PassthroughDiscovery {
 
 
     public static void main(String[] args) throws Exception {
-        ClassLoader classLoader = Util.getWarClassLoader(Paths.get(args[0]));
-
         PassthroughDiscovery passthroughDiscovery = new PassthroughDiscovery();
-        passthroughDiscovery.discover(new ClassResourceEnumerator(classLoader), new JavaDeserializationConfig());
+        passthroughDiscovery.discover(new ClassResourceEnumerator(new Path[] {Paths.get(args[0])}), new JavaDeserializationConfig());
         passthroughDiscovery.save();
     }
 }

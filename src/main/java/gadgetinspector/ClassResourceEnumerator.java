@@ -2,26 +2,79 @@ package gadgetinspector;
 
 import com.google.common.reflect.ClassPath;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class ClassResourceEnumerator {
-    private final ClassLoader classLoader;
+    private final Path[] jarPaths;
+    private final boolean loadRuntimeClasses;
 
-    public ClassResourceEnumerator(ClassLoader classLoader) throws IOException {
-        this.classLoader = classLoader;
+    public ClassResourceEnumerator(Path[] jarPaths) {
+        this(jarPaths, true);
+    }
+
+    public ClassResourceEnumerator(Path[] jarPaths, boolean loadRuntimeClasses) {
+        this.jarPaths = jarPaths;
+        this.loadRuntimeClasses = loadRuntimeClasses;
     }
 
     public Collection<ClassResource> getAllClasses() throws IOException {
-        Collection<ClassResource> result = new ArrayList<>(getRuntimeClasses());
-        for (ClassPath.ClassInfo classInfo : ClassPath.from(classLoader).getAllClasses()) {
-            result.add(new ClassLoaderClassResource(classLoader, classInfo.getResourceName()));
+        List<ClassResource> result = new ArrayList<>();
+        if (loadRuntimeClasses) {
+            result.addAll(getRuntimeClasses());
+        }
+        for (Path path : jarPaths) {
+            if (path.toString().endsWith(".war")) {
+                try (JarFile jarFile = new JarFile(path.toFile())) {
+                    Enumeration<JarEntry> entries = jarFile.entries();
+                    while(entries.hasMoreElements()) {
+                        JarEntry entry = entries.nextElement();
+                        if (entry.isDirectory())
+                            continue;
+                        if (entry.getName().startsWith("WEB-INF/lib") && entry.getName().endsWith(".jar")) {
+                            File file = File.createTempFile("gadget-chain", "jar");
+                            copy(jarFile.getInputStream(entry), new FileOutputStream(file));
+                            processJarFile(result, new JarFile(file));
+                            file.delete();
+                        } else if (entry.getName().startsWith("WEB-INF/classes") && entry.getName().endsWith(".class")) {
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            copy(jarFile.getInputStream(entry), baos);
+                            result.add(new ByteArrayClassResource(entry.getName(), baos.toByteArray()));
+                        } else {
+                            continue;
+                        }
+                    }
+                }
+            } else {
+                try (JarFile jarFile = new JarFile(path.toFile())) {
+                    processJarFile(result, jarFile);
+                }
+            }
         }
         return result;
+    }
+
+    private void processJarFile(Collection<ClassResource> result, JarFile jarFile) throws IOException {
+        Enumeration<JarEntry> entries = jarFile.entries();
+        while(entries.hasMoreElements()) {
+            JarEntry entry = entries.nextElement();
+            if (entry.isDirectory()) {
+                continue;
+            }
+            if (!entry.getName().endsWith(".class")) {
+                continue;
+            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            copy(jarFile.getInputStream(entry), baos);
+            result.add(new ByteArrayClassResource(entry.getName(), baos.toByteArray()));
+        }
     }
 
     private Collection<ClassResource> getRuntimeClasses() throws IOException {
@@ -61,6 +114,28 @@ public class ClassResourceEnumerator {
         public String getName();
     }
 
+
+    private static class ByteArrayClassResource implements ClassResource {
+
+        private final String name;
+        private final byte[] buffer;
+
+        private ByteArrayClassResource(String name, byte[] buffer) {
+            this.name = name;
+            this.buffer = buffer;
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return new ByteArrayInputStream(this.buffer);
+        }
+
+        @Override
+        public String getName() {
+            return this.name;
+        }
+    }
+
     private static class PathClassResource implements ClassResource {
         private final Path path;
 
@@ -96,6 +171,14 @@ public class ClassResourceEnumerator {
         @Override
         public String getName() {
             return resourceName;
+        }
+    }
+
+    private static void copy(InputStream inputStream, OutputStream outputStream) throws IOException {
+        final byte[] buffer = new byte[4096];
+        int n;
+        while ((n = inputStream.read(buffer)) > 0) {
+            outputStream.write(buffer, 0, n);
         }
     }
 }

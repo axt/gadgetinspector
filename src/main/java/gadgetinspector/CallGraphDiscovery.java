@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Map;
@@ -259,10 +260,8 @@ public class CallGraphDiscovery {
     }
 
     public static void main(String[] args) throws Exception {
-        ClassLoader classLoader = Util.getWarClassLoader(Paths.get(args[0]));
-
         CallGraphDiscovery callGraphDiscovery = new CallGraphDiscovery();
-        callGraphDiscovery.discover(new ClassResourceEnumerator(classLoader), new JavaDeserializationConfig());
+        callGraphDiscovery.discover(new ClassResourceEnumerator(new Path[] {Paths.get(args[0])}), new JavaDeserializationConfig());
         callGraphDiscovery.save();
     }
 }
