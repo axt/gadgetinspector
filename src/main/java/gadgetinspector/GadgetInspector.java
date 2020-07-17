@@ -35,6 +35,8 @@ public class GadgetInspector {
         configureLogging();
 
         boolean resume = false;
+        boolean loadRuntime= true;
+
         GIConfig config = ConfigRepository.getConfig("jserial");
 
         int argIndex = 0;
@@ -50,6 +52,8 @@ public class GadgetInspector {
                 if (config == null) {
                     throw new IllegalArgumentException("Invalid config name: " + args[argIndex]);
                 }
+            } else if (arg.equals("--no-rt")) {
+                loadRuntime = false;
             } else {
                 throw new IllegalArgumentException("Unexpected argument: " + arg);
             }
@@ -67,7 +71,7 @@ public class GadgetInspector {
         }
         LOGGER.info("Using classpath: " + Arrays.toString(jarPaths));
 
-        final ClassResourceEnumerator classResourceEnumerator = new ClassResourceEnumerator(jarPaths, true);
+        final ClassResourceEnumerator classResourceEnumerator = new ClassResourceEnumerator(jarPaths, loadRuntime);
 
         if (!resume) {
             // Delete all existing dat files
