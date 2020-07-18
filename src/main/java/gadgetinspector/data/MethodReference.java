@@ -76,6 +76,11 @@ public class MethodReference {
             result = 31 * result + (desc != null ? desc.hashCode() : 0);
             return result;
         }
+
+        @Override
+        public String toString() {
+            return this.getClassReference().getName() + "." + this.getName() + this.getDesc();
+        }
     }
 
     public static class Factory implements DataFactory<MethodReference> {
