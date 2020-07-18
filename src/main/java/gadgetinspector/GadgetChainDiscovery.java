@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -33,9 +34,11 @@ public class GadgetChainDiscovery {
     private static final Logger LOGGER = LoggerFactory.getLogger(GadgetChainDiscovery.class);
 
     private final GIConfig config;
+    private final Set<String> blacklist;
 
-    public GadgetChainDiscovery(GIConfig config) {
+    public GadgetChainDiscovery(GIConfig config, Set<String> blacklist) {
         this.config = config;
+        this.blacklist = blacklist;
     }
 
     public void discover() throws Exception {
@@ -83,6 +86,10 @@ public class GadgetChainDiscovery {
         LinkedList<GadgetChain> methodsToExplore = new LinkedList<>();
         for (Source source : DataLoader.loadData(Paths.get("sources.dat"), new Source.Factory())) {
             GadgetChainLink srcLink = new GadgetChainLink(source.getSourceMethod(), source.getTaintedArgIndex());
+            if (isBlacklisted(srcLink.method)) {
+                exploredMethods.add(srcLink);
+                continue;
+            }
             if (exploredMethods.contains(srcLink)) {
                 continue;
             }
@@ -112,6 +119,11 @@ public class GadgetChainDiscovery {
 
                     for (MethodReference.Handle methodImpl : allImpls) {
                         GadgetChainLink newLink = new GadgetChainLink(methodImpl, graphCall.getTargetArgIndex());
+
+                        if (isBlacklisted(newLink.method)) {
+                            exploredMethods.add(newLink);
+                            continue;
+                        }
                         if (exploredMethods.contains(newLink)) {
                             continue;
                         }
@@ -136,6 +148,15 @@ public class GadgetChainDiscovery {
         }
 
         LOGGER.info("Found {} gadget chains.", discoveredGadgets.size());
+    }
+
+    private boolean isBlacklisted(MethodReference.Handle method) {
+        for (String blacklistItem : blacklist) {
+            if (method.toString().contains(blacklistItem)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void printGadgetChain(Writer writer, GadgetChain chain) throws IOException {
@@ -344,7 +365,7 @@ public class GadgetChainDiscovery {
     }
 
     public static void main(String[] args) throws Exception {
-        GadgetChainDiscovery gadgetChainDiscovery = new GadgetChainDiscovery(new JavaDeserializationConfig());
+        GadgetChainDiscovery gadgetChainDiscovery = new GadgetChainDiscovery(new JavaDeserializationConfig(), new HashSet<>());
         gadgetChainDiscovery.discover();
     }
 }

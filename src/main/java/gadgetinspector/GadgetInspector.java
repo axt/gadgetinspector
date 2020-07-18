@@ -12,6 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Scanner;
+import java.util.Set;
 
 /**
  * Main entry point for running an end-to-end analysis. Deletes all data files before starting and writes discovered
@@ -35,7 +38,8 @@ public class GadgetInspector {
         configureLogging();
 
         boolean resume = false;
-        boolean loadRuntime= true;
+        boolean loadRuntime = true;
+        Set<String> blacklist = new HashSet<>();
 
         GIConfig config = ConfigRepository.getConfig("jserial");
 
@@ -50,6 +54,17 @@ public class GadgetInspector {
             } else if (arg.equals("--config")) {
                 config = ConfigRepository.getConfig(args[++argIndex]);
                 if (config == null) {
+                    throw new IllegalArgumentException("Invalid config name: " + args[argIndex]);
+                }
+            } else if (arg.equals("--blacklist")) {
+                Path blacklistFile = Paths.get(args[++argIndex]);
+                if (Files.exists(blacklistFile) && !Files.isDirectory(blacklistFile)) {
+                    try(Scanner scanner = new Scanner(blacklistFile.toFile())) {
+                        while (scanner.hasNextLine()) {
+                            blacklist.add(scanner.nextLine().trim());
+                        }
+                    };
+                } else {
                     throw new IllegalArgumentException("Invalid config name: " + args[argIndex]);
                 }
             } else if (arg.equals("--no-rt")) {
@@ -117,7 +132,7 @@ public class GadgetInspector {
 
         {
             LOGGER.info("Searching call graph for gadget chains...");
-            GadgetChainDiscovery gadgetChainDiscovery = new GadgetChainDiscovery(config);
+            GadgetChainDiscovery gadgetChainDiscovery = new GadgetChainDiscovery(config, blacklist);
             gadgetChainDiscovery.discover();
         }
 
