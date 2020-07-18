@@ -154,7 +154,7 @@ public class GadgetChainDiscovery {
         writer.write("\n");
     }
 
-    private static class GadgetChain {
+    static class GadgetChain {
         private final List<GadgetChainLink> links;
 
         private GadgetChain(List<GadgetChainLink> links) {
@@ -166,9 +166,13 @@ public class GadgetChainDiscovery {
             links.add(link);
             this.links = links;
         }
+
+        public List<GadgetChainLink> getLinks() {
+            return Collections.unmodifiableList(links);
+        }
     }
 
-    private static class GadgetChainLink {
+    static class GadgetChainLink {
         private final MethodReference.Handle method;
         private final int taintedArgIndex;
 
@@ -193,6 +197,19 @@ public class GadgetChainDiscovery {
             int result = method != null ? method.hashCode() : 0;
             result = 31 * result + taintedArgIndex;
             return result;
+        }
+
+        public MethodReference.Handle getMethod() {
+            return method;
+        }
+
+        public int getTaintedArgIndex() {
+            return taintedArgIndex;
+        }
+
+        @Override
+        public String toString() {
+            return method.toString() + "@" + taintedArgIndex;
         }
     }
 
