@@ -147,6 +147,8 @@ public class GadgetChainDiscovery {
             }
         }
 
+        DotUtil.dumpGadgetChains("gadget-chains.dot", discoveredGadgets);
+
         LOGGER.info("Found {} gadget chains.", discoveredGadgets.size());
     }
 
