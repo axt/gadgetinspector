@@ -6,13 +6,15 @@ public class GraphCall {
     private final int callerArgIndex;
     private final String callerArgPath;
     private final int targetArgIndex;
+    private final boolean isSpecial;
 
-    public GraphCall(MethodReference.Handle callerMethod, MethodReference.Handle targetMethod, int callerArgIndex, String callerArgPath, int targetArgIndex) {
+    public GraphCall(MethodReference.Handle callerMethod, MethodReference.Handle targetMethod, int callerArgIndex, String callerArgPath, int targetArgIndex, boolean isSpecial) {
         this.callerMethod = callerMethod;
         this.targetMethod = targetMethod;
         this.callerArgIndex = callerArgIndex;
         this.callerArgPath = callerArgPath;
         this.targetArgIndex = targetArgIndex;
+        this.isSpecial = isSpecial;
     }
 
     public MethodReference.Handle getCallerMethod() {
@@ -34,6 +36,8 @@ public class GraphCall {
     public int getTargetArgIndex() {
         return targetArgIndex;
     }
+
+    public boolean isSpecial() { return isSpecial; }
 
     @Override
     public boolean equals(Object o) {
@@ -70,7 +74,8 @@ public class GraphCall {
                     new MethodReference.Handle(new ClassReference.Handle(fields[3]), fields[4], fields[5]),
                     Integer.parseInt(fields[6]),
                     fields[7],
-                    Integer.parseInt(fields[8]));
+                    Integer.parseInt(fields[8]),
+                    Boolean.parseBoolean(fields[9]));
         }
 
         @Override
@@ -81,6 +86,7 @@ public class GraphCall {
                     Integer.toString(obj.callerArgIndex),
                     obj.callerArgPath,
                     Integer.toString(obj.targetArgIndex),
+                    Boolean.toString(obj.isSpecial)
             };
         }
     }

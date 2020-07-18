@@ -244,7 +244,8 @@ public class CallGraphDiscovery {
                                         new MethodReference.Handle(new ClassReference.Handle(owner), name, desc),
                                         srcArgIndex,
                                         srcArgPath,
-                                        argIndex));
+                                        argIndex,
+                                        opcode == Opcodes.INVOKESPECIAL));
                             }
                         }
 
