@@ -82,63 +82,10 @@ public class GadgetChainDiscovery {
             }
         }
 
-        Set<GadgetChainLink> exploredMethods = new HashSet<>();
-        LinkedList<GadgetChain> methodsToExplore = new LinkedList<>();
-        for (Source source : DataLoader.loadData(Paths.get("sources.dat"), new Source.Factory())) {
-            GadgetChainLink srcLink = new GadgetChainLink(source.getSourceMethod(), source.getTaintedArgIndex());
-            if (isBlacklisted(srcLink.method)) {
-                exploredMethods.add(srcLink);
-                continue;
-            }
-            if (exploredMethods.contains(srcLink)) {
-                continue;
-            }
-            methodsToExplore.add(new GadgetChain(Arrays.asList(srcLink)));
-            exploredMethods.add(srcLink);
-        }
+        List<Source> sources = DataLoader.loadData(Paths.get("sources.dat"), new Source.Factory());
 
-        long iteration = 0;
-        Set<GadgetChain> discoveredGadgets = new HashSet<>();
-        while (methodsToExplore.size() > 0) {
-            if ((iteration % 1000) == 0) {
-                LOGGER.info("Iteration " + iteration + ", Search space: " + methodsToExplore.size());
-            }
-            iteration += 1;
-
-            GadgetChain chain = methodsToExplore.pop();
-            GadgetChainLink lastLink = chain.links.get(chain.links.size()-1);
-
-            Set<GraphCall> methodCalls = graphCallMap.get(lastLink.method);
-            if (methodCalls != null) {
-                for (GraphCall graphCall : methodCalls) {
-                    if (graphCall.getCallerArgIndex() != lastLink.taintedArgIndex) {
-                        continue;
-                    }
-
-                    Set<MethodReference.Handle> allImpls = implementationFinder.getImplementations(graphCall.getTargetMethod());
-
-                    for (MethodReference.Handle methodImpl : allImpls) {
-                        GadgetChainLink newLink = new GadgetChainLink(methodImpl, graphCall.getTargetArgIndex());
-
-                        if (isBlacklisted(newLink.method)) {
-                            exploredMethods.add(newLink);
-                            continue;
-                        }
-                        if (exploredMethods.contains(newLink)) {
-                            continue;
-                        }
-
-                        GadgetChain newChain = new GadgetChain(chain, newLink);
-                        if (isSink(methodImpl, graphCall.getTargetArgIndex(), inheritanceMap)) {
-                            discoveredGadgets.add(newChain);
-                        } else {
-                            methodsToExplore.add(newChain);
-                            exploredMethods.add(newLink);
-                        }
-                    }
-                }
-            }
-        }
+        GadgetChainDiscoveryStrategy gadgetChainDiscoveryStrategy = new DefaultGadgetChainDiscoveryStrategy(sources, inheritanceMap, implementationFinder, graphCallMap);
+        Set<GadgetChain> discoveredGadgets = gadgetChainDiscoveryStrategy.findGadgetChains();
 
         try (OutputStream outputStream = Files.newOutputStream(Paths.get("gadget-chains.txt"));
              Writer writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
@@ -369,5 +316,91 @@ public class GadgetChainDiscovery {
     public static void main(String[] args) throws Exception {
         GadgetChainDiscovery gadgetChainDiscovery = new GadgetChainDiscovery(new JavaDeserializationConfig(), new HashSet<>());
         gadgetChainDiscovery.discover();
+    }
+
+
+    public interface GadgetChainDiscoveryStrategy {
+        Set<GadgetChain> findGadgetChains();
+    }
+
+    public abstract class AbstractGadgetChainDiscoveryStrategy implements GadgetChainDiscoveryStrategy {
+        final List<Source> sources;
+        final InheritanceMap inheritanceMap;
+        final ImplementationFinder implementationFinder;
+        final Map<MethodReference.Handle, Set<GraphCall>> graphCallMap;
+
+        public AbstractGadgetChainDiscoveryStrategy(List<Source> sources, InheritanceMap inheritanceMap, ImplementationFinder implementationFinder, Map<MethodReference.Handle, Set<GraphCall>> graphCallMap) {
+            this.sources = sources;
+            this.inheritanceMap = inheritanceMap;
+            this.implementationFinder = implementationFinder;
+            this.graphCallMap = graphCallMap;
+        }
+    }
+
+    public class DefaultGadgetChainDiscoveryStrategy extends AbstractGadgetChainDiscoveryStrategy {
+
+        public DefaultGadgetChainDiscoveryStrategy(List<Source> sources, InheritanceMap inheritanceMap, ImplementationFinder implementationFinder, Map<MethodReference.Handle, Set<GraphCall>> graphCallMap) {
+            super(sources, inheritanceMap, implementationFinder, graphCallMap);
+        }
+
+        public Set<GadgetChain> findGadgetChains() {
+            Set<GadgetChainLink> exploredMethods = new HashSet<>();
+            LinkedList<GadgetChain> methodsToExplore = new LinkedList<>();
+
+            for (Source source : this.sources) {
+                GadgetChainLink srcLink = new GadgetChainLink(source.getSourceMethod(), source.getTaintedArgIndex());
+
+                if (isBlacklisted(srcLink.method))
+                    continue;
+                if (exploredMethods.contains(srcLink))
+                    continue;
+
+                methodsToExplore.add(new GadgetChain(Arrays.asList(srcLink)));
+                exploredMethods.add(srcLink);
+            }
+
+            Set<GadgetChain> discoveredGadgets = new HashSet<>();
+
+            long iteration = 0;
+            while (methodsToExplore.size() > 0) {
+                if ((iteration % 1000) == 0) {
+                    LOGGER.info("Iteration " + iteration + ", Search space: " + methodsToExplore.size());
+                }
+                iteration += 1;
+
+                GadgetChain chain = methodsToExplore.pop();
+                GadgetChainLink lastLink = chain.links.get(chain.links.size()-1);
+
+                Set<GraphCall> methodCalls = graphCallMap.get(lastLink.method);
+                if (methodCalls != null) {
+                    for (GraphCall graphCall : methodCalls) {
+
+                        if (graphCall.getCallerArgIndex() != lastLink.taintedArgIndex)
+                            continue;
+
+                        Set<MethodReference.Handle> allImpls = implementationFinder.getImplementations(graphCall.getTargetMethod());
+
+                        for (MethodReference.Handle methodImpl : allImpls) {
+                            GadgetChainLink newLink = new GadgetChainLink(methodImpl, graphCall.getTargetArgIndex());
+
+                            if (isBlacklisted(newLink.method))
+                                exploredMethods.add(newLink);
+
+                            if (exploredMethods.contains(newLink))
+                                continue;
+
+                            GadgetChain newChain = new GadgetChain(chain, newLink);
+                            if (isSink(methodImpl, graphCall.getTargetArgIndex(), inheritanceMap)) {
+                                discoveredGadgets.add(newChain);
+                            } else {
+                                methodsToExplore.add(newChain);
+                                exploredMethods.add(newLink);
+                            }
+                        }
+                    }
+                }
+            }
+            return discoveredGadgets;
+        }
     }
 }
